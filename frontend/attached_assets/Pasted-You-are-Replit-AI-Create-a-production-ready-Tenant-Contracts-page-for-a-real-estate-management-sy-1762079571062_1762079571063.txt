@@ -1,0 +1,162 @@
+You are Replit AI. Create a production-ready Tenant “Contracts” page for a real estate management system.
+
+## Tech & Setup
+- Frontend: React + TypeScript + Vite + TailwindCSS.
+- State: React Query for data fetching/caching; React Router for routing.
+- Icons: lucide-react.
+- Date/time: dayjs with timezone Asia/Riyadh.
+- Currency: SAR formatting.
+- Accessibility: keyboard navigable, ARIA labels, focus states.
+- i18n-ready (English now; add simple strings object; plan RTL later).
+
+## Project Structure (create if missing)
+- src/
+  - pages/TenantContracts.tsx
+  - components/
+    - ContractCard.tsx
+    - ContractTimeline.tsx
+    - PaymentSchedule.tsx
+    - UploadButton.tsx
+    - StatusBadge.tsx
+    - RenewContractModal.tsx
+    - PayRentModal.tsx
+    - AddAddendumModal.tsx
+  - api/client.ts (fetch wrapper with baseURL)
+  - api/contracts.ts (React Query hooks)
+  - lib/format.ts (money/date helpers)
+  - styles/tailwind.css
+  - main.tsx, App.tsx, router
+
+- server/ (mock API for now in the same Replit)
+  - index.ts (Express server + in-memory data)
+
+## Core UX (Tenant view)
+- Page title: “My Contracts”
+- Top bar with quick stats:
+  - Active Contract (unit name), Next Payment due date + amount, Contract ends in X days.
+- Tabs (client-side):
+  1) Active
+  2) Past
+  3) Documents (all PDFs uploaded: contract, addendums, receipts)
+- Search + filters:
+  - Filter by property, unit, status (Active / Expiring < 60 days / Past), year.
+- Each contract appears as a **ContractCard** with:
+  - Property & Unit (e.g., “Mskn Tower – Unit 12B”)
+  - Lease term: start–end (Gregorian), remaining days
+  - Monthly rent (SAR), payment cycle, security deposit
+  - Status badge: Active / Expiring / Terminated
+  - Buttons: **View Timeline**, **Pay Rent**, **Renew**, **Download PDF**, **Add Addendum**, **View Addendums**
+  - Next payment chip: amount + due date + “Pay now”
+- **ContractTimeline**: key events in a vertical timeline (Signed, Deposit paid, Payments, Addendums, Notices, Reminders, Renewal request).
+- **PaymentSchedule** table:
+  - Columns: #, Period, Due Date, Amount (SAR), Status (Paid/Overdue/Upcoming), Paid On, Receipt (download).
+  - Show totals and remaining balance.
+- **Modals**:
+  - RenewContractModal: choose new term (12/24 months), proposed monthly rent, start date = day after end, upload docs, submit renewal request.
+  - PayRentModal: amount due, breakdown, card placeholder (mock), confirm -> marks installment as “paid” and generates receipt PDF (fake link).
+  - AddAddendumModal: title, description, upload PDF; after submit, append to contract.documents.
+- **Documents Tab**: list and preview PDFs (contract, addendums, receipts). Each item has date, type, and Download.
+- **Toasts** for success/failure actions.
+- **Empty states** with helpful text and a link to contact support.
+
+## Data Model (TypeScript)
+type Money = { currency: "SAR"; amount: number };
+type ContractStatus = "ACTIVE" | "EXPIRING" | "TERMINATED" | "PAST";
+type PaymentStatus = "PAID" | "OVERDUE" | "UPCOMING";
+
+interface PaymentItem {
+  id: string;
+  installmentNo: number;
+  periodLabel: string; // "Nov 2025"
+  dueDate: string;     // ISO
+  amount: Money;
+  status: PaymentStatus;
+  paidOn?: string;     // ISO
+  receiptUrl?: string; // mock link
+}
+
+interface ContractDocument {
+  id: string;
+  type: "CONTRACT" | "ADDENDUM" | "RECEIPT";
+  title: string;
+  url: string;     // mock
+  uploadedAt: string;
+}
+
+interface Contract {
+  id: string;
+  propertyName: string;
+  unitLabel: string;
+  leaseStart: string; // ISO
+  leaseEnd: string;   // ISO
+  monthlyRent: Money;
+  paymentCycle: "MONTHLY";
+  securityDeposit: Money;
+  status: ContractStatus;
+  nextPayment?: PaymentItem;
+  payments: PaymentItem[];
+  documents: ContractDocument[];
+}
+
+## Mock API (server/index.ts)
+Express server with CORS returning:
+GET /api/contracts?tenantId=me  -> Contract[]
+GET /api/contracts/:id          -> Contract
+POST /api/contracts/:id/pay     -> { ok: true, paymentId, receiptUrl } + mark status "PAID"
+POST /api/contracts/:id/renew   -> { ok: true, newEndDate, newMonthlyRent }
+POST /api/contracts/:id/addendum -> { ok: true, doc }
+
+Seed with:
+- 1 ACTIVE contract (ends in 45 days to trigger “EXPIRING” badge logic)
+- 1 PAST contract
+- Payment schedule of 12 items with a mixture of PAID/UPCOMING and one OVERDUE (yesterday)
+
+Generate fake receipt URLs and document URLs.
+Use Asia/Riyadh timezone when computing “remaining days” and “due today”.
+
+## UI/Style
+- Modern, clean cards with rounded-2xl, soft shadow, adequate padding.
+- Tailwind utility classes; responsive layout.
+- StatusBadge colors: ACTIVE (green), EXPIRING (amber), OVERDUE (red), PAST (slate).
+- Buttons: primary for “Pay Rent”, secondary for “Renew”, outline for “Download”.
+- Show loading skeletons (pulse) while fetching.
+- Error boundary with retry.
+
+## Helpers
+- formatMoney(Money) -> "SAR 3,500"
+- formatDate(iso) -> "02 Nov 2025"
+- daysUntil(isoEnd) -> number
+- isExpiring(leaseEnd) -> boolean (<= 60 days)
+
+## React Query Hooks (api/contracts.ts)
+- useContracts(): fetch /api/contracts?tenantId=me
+- useContract(id)
+- usePayRent(id)
+- useRenewContract(id)
+- useAddAddendum(id)
+
+Use optimistic updates for:
+- Marking a single installment as PAID
+- Adding an addendum document
+
+## Routing
+Add route `/tenant/contracts` that renders <TenantContracts/>.
+
+## Acceptance Criteria
+- Page loads with seeded data, showing an ACTIVE contract and a PAST one.
+- Expiring badge appears if lease end <= 60 days.
+- “Pay Rent” updates one upcoming/overdue installment to PAID and shows a mock receipt URL in the table.
+- “Renew” posts a request and updates the UI to show a pending renewal notice in the timeline.
+- “Add Addendum” adds a document visible under Documents tab and the contract card’s count.
+- All buttons keyboard accessible; ARIA labels present.
+- All dates/times computed in Asia/Riyadh; currency displayed as SAR.
+
+## Deliverables
+- Fully running Replit with frontend + mock server (concurrently if needed).
+- Clear README section in App.tsx comment: how to run:
+  1) Install deps
+  2) Start mock server on port 3001
+  3) Start Vite on port 5173
+  4) Frontend baseURL points to http://localhost:3001
+
+Now generate all files and code.

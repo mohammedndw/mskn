@@ -1,0 +1,309 @@
+# Build Prompt for Reblit (AI web builder)
+
+You are an AI that generates a full-stack web application. Build the **Properties Page** of the **Property Managers Platform** exactly as specified below. Use modern, production-ready practices.
+
+---
+
+## Tech Stack (preferred)
+
+* **Frontend:** Next.js 14 (App Router) + TypeScript, Tailwind CSS, shadcn/ui, lucide-react icons.
+* **Backend:** Next.js API routes (route handlers) with **Prisma ORM**.
+* **Database:** PostgreSQL.
+* **Storage:** Local disk for dev; abstract a storage service for images with an interface ready to swap to S3 later.
+* **Auth (scaffold only):** Email/password stub with a single tenant; protect all /properties routes (mock session ok).
+* **State:** React Server Components for data fetching, client components for forms; React Query (TanStack) for mutations & cache.
+* **Testing:** Playwright (basic happy-path E2E) and Vitest for unit tests of utilities.
+
+If a library is unavailable, use closest equivalent but keep the same UI/UX.
+
+---
+
+## Domain Vocabulary
+
+* **Parent RealEstate** = a container/parent asset (e.g., a building or compound).
+* **Property** = a unit within a parent (e.g., apartment, shop, office).
+* **Status** (for Property): `rented`, `reserved`, `vacant`.
+
+---
+
+## Routes & Navigation
+
+* Route: **/properties** → main listing page.
+* Nested routes/API:
+
+  * **GET /api/properties** with query params: `q`, `status`, `page`, `pageSize`, `sort`, `dir`.
+  * **POST /api/properties** (create property).
+  * **PATCH /api/properties/\:id** (update property).
+  * **DELETE /api/properties/\:id** (soft delete; set `deletedAt`).
+  * **GET /api/parents** (list Parent RealEstates, searchable by `q`).
+  * **POST /api/parents** (create Parent RealEstate).
+
+Return JSON with `{ data, meta: { page, pageSize, total, totalPages } }`. On validation errors, return `422` with `{ fieldErrors }`.
+
+---
+
+## Data Model (Prisma)
+
+```prisma
+model ParentRealEstate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  region      String
+  city        String
+  district    String
+  address     String
+  properties  Property[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Property {
+  id          String   @id @default(cuid())
+  parentId    String
+  parent      ParentRealEstate @relation(fields: [parentId], references: [id])
+  name        String
+  address     String
+  region      String
+  city        String
+  description String?  @db.Text
+  status      PropertyStatus @default(VACANT)
+  cost        Decimal  @db.Decimal(12,2)
+  sqm         Int
+  images      PropertyImage[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+}
+
+enum PropertyStatus { RENTED RESERVED VACANT }
+
+model PropertyImage {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  url        String
+  alt        String?
+  createdAt  DateTime @default(now())
+}
+```
+
+---
+
+## Properties Page – UI/UX Requirements
+
+**Header bar**
+
+* Title: **Properties**.
+* Right side: **Create Unit Property** button with a dropdown (shadcn/ui `DropdownMenu`):
+
+  * **Create Parent RealEstate** → opens modal form `ParentRealEstateForm`.
+  * **Create Property** → opens modal form `PropertyForm`.
+
+**Controls row**
+
+* **Search input** (placeholder: "Search by property name…") with 300ms debounce → filters by `name` (case-insensitive, partial).
+* **Status filter** as segmented control/chips: `All`, `Rented`, `Reserved`, `Vacant`. Default = `All`.
+* **Sort dropdown**: by `Name`, `Status`, `City`, `Created`. Default = `Created (desc)`.
+* **Page size**: 10 / 20 / 50.
+
+**Results area**
+
+* Responsive card grid (1–4 columns). Each **Property Card** shows:
+
+  * Image (first uploaded image; fallback icon).
+  * **Name** (clickable future link), **Parent RealEstate** name (subtle), **Status** badge with color:
+
+    * RENTED = filled
+    * RESERVED = outline
+    * VACANT = neutral
+  * Address (one line), Region • City • District (if available; district from parent for now).
+  * Meta row: **SQM**, **Cost** (currency SAR formatting), **Created date** (relative).
+  * **Actions** (3-dot menu): View (stub), Edit (opens edit modal), Delete (soft delete with confirm).
+* **Empty state** when no results: illustration + "No properties yet" + primary button to **Create Property**.
+* **Pagination** at bottom with page numbers and next/prev.
+
+**Performance**
+
+* Server-side fetching with search/filter query params in URL; preserves deep links and reloads.
+* Optimistic updates for create/edit/delete with React Query; show shadcn toasts.
+
+**Accessibility**
+
+* Labels, aria attributes, keyboard focus, form errors announced; color contrast AA.
+
+---
+
+## Forms & Validation
+
+### Create Parent RealEstate (modal)
+
+Fields (all required unless noted):
+
+* **Name** (text, max 100)
+* **Description** (textarea, optional, max 1000)
+* **Region** (select)
+* **City** (select; filtered by Region)
+* **District** (text)
+* **Address** (textarea, max 200)
+  Buttons: **Create** (primary), **Cancel** (ghost). On success: toast "Parent RealEstate created" and close.
+
+### Create Property (modal)
+
+Fields:
+
+* **Parent RealEstate** (async searchable select; required)
+* **Name** (text, max 100)
+* **Address** (textarea, max 200)
+* **Region** (select)
+* **City** (select; filtered by Region)
+* **Description** (textarea, optional, max 1000)
+* **Property Cost** (numeric currency SAR; min 0; store as decimal)
+* **SQM (total space)** (integer; min 1)
+* **Upload files (images)**: multiple file upload, accept `image/*`, preview thumbnails, limit 10 files, each ≤ 5MB.
+* **Status** (select: Vacant (default), Reserved, Rented)
+  Buttons: **Create**, **Cancel**. Success toast and card appears immediately.
+
+**Validation Rules**
+
+* Required fields must be present; trim whitespace.
+* Name unique per parent.
+* `cost` ≥ 0; `sqm` ≥ 1.
+* Images: validate type & size; store and save URLs then link via `PropertyImage`.
+* Prevent XSS: sanitize text fields.
+
+**Error UX**
+
+* Inline field errors; modal stays open. Display general API error banner if needed.
+
+---
+
+## API Contract (examples)
+
+### List properties
+
+`GET /api/properties?q=apt&status=VACANT&page=1&pageSize=20&sort=createdAt&dir=desc`
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "prop_123",
+      "name": "Apt 204",
+      "status": "VACANT",
+      "parent": { "id": "pre_1", "name": "Al Noor Tower" },
+      "address": "King Fahd Rd, Riyadh",
+      "region": "Riyadh",
+      "city": "Riyadh",
+      "cost": 65000.0,
+      "sqm": 120,
+      "images": [{"url":"/uploads/prop_123_1.jpg","alt":"Living room"}],
+      "createdAt": "2025-09-01T10:00:00Z"
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 1, "totalPages": 1 }
+}
+```
+
+### Create parent
+
+`POST /api/parents`
+
+```json
+{
+  "name": "Al Qassim Plaza",
+  "description": "Retail & offices",
+  "region": "Al Qassim",
+  "city": "Buraydah",
+  "district": "Al Rabwah",
+  "address": "Prince Sultan Rd"
+}
+```
+
+→ `201` with created record.
+
+### Create property
+
+`POST /api/properties`
+
+```json
+{
+  "parentId": "pre_1",
+  "name": "Shop B-12",
+  "address": "Ground floor, unit B-12",
+  "region": "Riyadh",
+  "city": "Riyadh",
+  "description": "Street-facing retail",
+  "status": "VACANT",
+  "cost": 95000,
+  "sqm": 80,
+  "imageFiles": [/* multipart form-data */]
+}
+```
+
+→ Upload images via multipart; backend stores and returns `images: [{url, alt}]`.
+
+---
+
+## Component Breakdown (frontend)
+
+* `PropertiesPage` (server): reads search params, fetches list, renders controls & grid.
+* `PropertyCard` (client): displays one item + actions.
+* `SearchBar` (client): debounced update of URL query.
+* `StatusFilter` (client): segmented control → updates URL.
+* `SortAndPageSize` (client).
+* `Pagination` (client).
+* `ParentRealEstateForm` (client modal) using `react-hook-form` + `zod`.
+* `PropertyForm` (client modal) using `react-hook-form` + `zod`.
+* `ImageUploader` (client): previews, progress, delete before submit.
+
+---
+
+## Seed Data (optional)
+
+Create 2 parents and 6 properties with varied statuses/images to demo filters.
+
+---
+
+## Non-Functional
+
+* **i18n-ready**: strings centralized; default English.
+* **Timezone**: store timestamps UTC; format in user’s locale.
+* **Logging**: log API errors to server console and return ID to client.
+
+---
+
+## Acceptance Criteria (must pass)
+
+1. Visiting `/properties` shows a grid of properties with search, status filters, sort, and pagination.
+2. Typing in search updates the URL (`?q=...`) and refetches results.
+3. Clicking status chips filters results and updates `?status` accordingly.
+4. “Create Unit Property” menu opens two separate modals as specified; required fields block submit.
+5. Creating a **Parent RealEstate** saves and it becomes selectable in the Property form.
+6. Creating a **Property** with images uploads files, shows preview, and card appears without full page reload.
+7. Delete action soft-deletes and removes the card; item does not reappear on reload.
+8. All forms show inline validation errors; toasts confirm success.
+9. Properties show correct **Status** badge colors and formatted cost (SAR) and **SQM**.
+10. Empty state appears when no matches.
+
+---
+
+## Edge Cases to Handle
+
+* Search that returns zero results → empty state.
+* Attempt to create a Property without selecting a Parent → field error.
+* Upload non-image file or >5MB → client rejects.
+* Duplicate property name under same parent → 422 with field error.
+* Network/API failure → non-blocking toast + inline message; form remains open.
+
+---
+
+## Developer Notes
+
+* Keep UI minimal and clean; card hover, rounded-2xl, soft shadows.
+* Use Tailwind utility classes; shadcn/ui `Card`, `Button`, `Badge`, `DropdownMenu`, `Dialog`, `Input`, `Select`, `Textarea`, `Pagination`.
+* Extract Region/City options to a shared constant (stub data is fine for now). District is stored only on Parent for this page.
+* Currency formatter: `Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR' })`.
+
+**Deliver exactly this page end-to-end.** When done, output a short summary of how to run it (migrate DB, seed, dev server).

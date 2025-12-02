@@ -1,0 +1,676 @@
+openapi: 3.0.0
+info:
+  title: Property Management System API
+  description: |
+    Complete API documentation for the Property Management System.
+
+    ## Features
+    - JWT Authentication
+    - Role-Based Access Control (ADMIN, PROPERTY_MANAGER, PROPERTY_OWNER)
+    - Token-based Tenant Portal
+    - Audit Logging
+    - File Upload Support
+
+    ## Authentication
+    Most endpoints require Bearer token authentication. Include the JWT token in the Authorization header:
+    ```
+    Authorization: Bearer <your_jwt_token>
+    ```
+
+    ## Roles
+    - **ADMIN**: Full system access
+    - **PROPERTY_MANAGER**: Manage properties, tenants, contracts, maintenance
+    - **PROPERTY_OWNER**: View their properties, contracts, and tenants (read-only)
+
+  version: 1.0.0
+  contact:
+    email: info@propertymanagement.com
+
+servers:
+  - url: http://localhost:5000/api
+    description: Development server
+  - url: https://api.propertymanagement.com/api
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Authentication
+    description: User authentication and registration
+  - name: Users
+    description: User management (Admin only)
+  - name: Dashboard
+    description: Dashboard statistics
+  - name: Subscription Plans
+    description: Subscription plan management (Admin only)
+  - name: User Subscriptions
+    description: User subscription management (Admin only)
+  - name: Estates
+    description: Estate management
+  - name: Properties
+    description: Property management
+  - name: Tenants
+    description: Tenant management
+  - name: Contracts
+    description: Contract management
+  - name: Maintenance
+    description: Maintenance request management
+  - name: Tenant Portal
+    description: Token-based tenant portal
+  - name: Upload
+    description: File upload endpoints
+  - name: Settings
+    description: System settings management
+  - name: Audit Logs
+    description: Audit log viewing (Admin only)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    tenantPortalToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Tenant portal access token
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Error message
+
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        message:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        nationalId:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, PROPERTY_MANAGER, PROPERTY_OWNER]
+        isBlocked:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Estate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        region:
+          type: string
+        city:
+          type: string
+        street:
+          type: string
+        address:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Property:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        estateId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        area:
+          type: number
+        floor:
+          type: integer
+        imageUrl:
+          type: string
+        status:
+          type: string
+          enum: [AVAILABLE, RESERVED, RENTED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          pattern: '^05\d{8}$'
+        nationalId:
+          type: string
+          pattern: '^\d{10}$'
+        birthDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Contract:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        propertyId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        price:
+          type: number
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        paymentFrequency:
+          type: string
+          enum: [ONCE, TWICE]
+        documentUrl:
+          type: string
+        tenantPortalToken:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MaintenanceRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        images:
+          type: array
+          items:
+            type: string
+        internalNotes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Settings:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        value:
+          type: object
+        description:
+          type: string
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        action:
+          type: string
+        entity:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        details:
+          type: object
+        ipAddress:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the server is running
+      responses:
+        '200':
+          description: Server is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /:
+    get:
+      tags:
+        - Health
+      summary: API information
+      description: Get API version and available endpoints
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+
+  /auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register as Property Manager or Property Owner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+                - phone
+                - nationalId
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                phone:
+                  type: string
+                nationalId:
+                  type: string
+                role:
+                  type: string
+                  enum: [PROPERTY_MANAGER, PROPERTY_OWNER]
+      responses:
+        '201':
+          description: User registered successfully
+        '400':
+          description: Validation error
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Invalid credentials
+        '403':
+          description: User is blocked
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+        '401':
+          description: Unauthorized
+
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get all settings
+      description: Public settings visible to all, all settings visible to admins
+      parameters:
+        - in: query
+          name: key
+          schema:
+            type: string
+          description: Filter by setting key
+        - in: query
+          name: isPublic
+          schema:
+            type: boolean
+          description: Filter by public/private settings (Admin only)
+      responses:
+        '200':
+          description: Settings retrieved successfully
+
+    post:
+      tags:
+        - Settings
+      summary: Create new setting
+      security:
+        - bearerAuth: []
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - value
+              properties:
+                key:
+                  type: string
+                  pattern: '^[A-Z_]+$'
+                value:
+                  type: object
+                description:
+                  type: string
+                isPublic:
+                  type: boolean
+      responses:
+        '201':
+          description: Setting created successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin access required
+
+  /settings/{key}:
+    get:
+      tags:
+        - Settings
+      summary: Get setting by key
+      description: Public settings visible to all, all settings visible to admins
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Setting retrieved successfully
+        '404':
+          description: Setting not found
+
+    put:
+      tags:
+        - Settings
+      summary: Update setting
+      security:
+        - bearerAuth: []
+      description: Admin only
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: object
+                description:
+                  type: string
+                isPublic:
+                  type: boolean
+      responses:
+        '200':
+          description: Setting updated successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin access required
+        '404':
+          description: Setting not found
+
+    delete:
+      tags:
+        - Settings
+      summary: Delete setting
+      security:
+        - bearerAuth: []
+      description: Admin only
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Setting deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin access required
+        '404':
+          description: Setting not found
+
+  /audit-logs:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get all audit logs
+      security:
+        - bearerAuth: []
+      description: Admin only - Get audit logs with filters and pagination
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: action
+          schema:
+            type: string
+        - in: query
+          name: entity
+          schema:
+            type: string
+        - in: query
+          name: entityId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin access required
+
+  /audit-logs/stats:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get audit log statistics
+      security:
+        - bearerAuth: []
+      description: Admin only
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin access required
+
+  /audit-logs/{id}:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get audit log by ID
+      security:
+        - bearerAuth: []
+      description: Admin only
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Audit log retrieved successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Admin access required
+        '404':
+          description: Audit log not found
