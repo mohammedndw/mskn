@@ -180,7 +180,7 @@ export default function ContractForm({ onSuccess }: ContractFormProps) {
             name="price"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Monthly Price (SAR)</FormLabel>
+                <FormLabel>Annual Price (SAR)</FormLabel>
                 <FormControl>
                   <Input
                     type="number"

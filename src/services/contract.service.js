@@ -444,6 +444,11 @@ class ContractService {
     // Get the property to update status later
     const propertyId = contract.propertyId;
 
+    // Delete related maintenance requests first
+    await prisma.maintenanceRequest.deleteMany({
+      where: { contractId: id }
+    });
+
     // Delete contract
     await prisma.contract.delete({
       where: { id }

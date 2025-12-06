@@ -32,7 +32,7 @@ const insertTenantSchema = z.object({
 const formSchema = insertTenantSchema.extend({
   firstName: z.string().min(1, "First name is required").max(50, "First name must be 50 characters or less"),
   lastName: z.string().min(1, "Last name is required").max(50, "Last name must be 50 characters or less"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20, "Phone must be 20 characters or less"),
   nationalId: z.string().min(1, "National ID is required").max(20, "National ID must be 20 characters or less"),
   birthDate: z.string().min(1, "Birth date is required"),
@@ -136,7 +136,7 @@ export default function TenantForm({ onClose }: TenantFormProps) {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email (optional)</FormLabel>
+                <FormLabel>Email</FormLabel>
                 <FormControl>
                   <Input
                     {...field}

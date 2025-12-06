@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Trash2, Phone, CreditCard, Calendar } from "lucide-react";
+import { Plus, Search, Trash2, Phone, CreditCard, Calendar, Mail, Home, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ export default function TenantsPage() {
     },
   });
 
-  // Fetch contracts to filter tenants by property owner
+  // Fetch contracts to show tenant's contract and property info
   const { data: contractsData, isLoading: loadingContracts } = useQuery({
     queryKey: ['/api/contracts'],
     queryFn: async () => {
@@ -57,10 +57,9 @@ export default function TenantsPage() {
       if (!response.ok) throw new Error('Failed to fetch contracts');
       return response.json();
     },
-    enabled: isPropertyOwner, // Only fetch if user is property owner
   });
 
-  // Fetch properties to filter by owner
+  // Fetch properties to filter by owner and show property names
   const { data: propertiesData, isLoading: loadingProperties } = useQuery({
     queryKey: ['/api/properties'],
     queryFn: async () => {
@@ -70,7 +69,6 @@ export default function TenantsPage() {
       if (!response.ok) throw new Error('Failed to fetch properties');
       return response.json();
     },
-    enabled: isPropertyOwner, // Only fetch if user is property owner
   });
 
   const allTenants = tenantsData?.data || [];
@@ -93,8 +91,20 @@ export default function TenantsPage() {
     tenants = allTenants.filter((t: Tenant) => tenantIdsFromContracts.includes(t.id));
   }
 
-  const isLoading = loadingTenants || (isPropertyOwner && (loadingContracts || loadingProperties));
+  const isLoading = loadingTenants || loadingContracts || loadingProperties;
   const error = tenantsError;
+
+  // Helper function to get tenant's active contract and property
+  const getTenantContractInfo = (tenantId: string) => {
+    const contract = allContracts.find((c: any) => c.tenantId === tenantId);
+    if (!contract) return null;
+
+    const property = allProperties.find((p: any) => p.id === contract.propertyId);
+    return {
+      contract,
+      property,
+    };
+  };
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -203,39 +213,82 @@ export default function TenantsPage() {
         {/* Tenants Grid */}
         {!isLoading && !error && tenants.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="grid-tenants">
-            {tenants.map((tenant: Tenant) => (
-              <Card key={tenant.id} className="hover-elevate" data-testid={`card-tenant-${tenant.id}`}>
-                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                  <CardTitle className="text-lg font-semibold" data-testid={`text-tenant-name-${tenant.id}`}>
-                    {tenant.firstName} {tenant.lastName}
-                  </CardTitle>
-                  {!isPropertyOwner && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeleteConfirmId(tenant.id)}
-                      data-testid={`button-delete-tenant-${tenant.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Phone className="h-4 w-4" />
-                    <span data-testid={`text-tenant-phone-${tenant.id}`}>{tenant.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CreditCard className="h-4 w-4" />
-                    <span data-testid={`text-tenant-nationalid-${tenant.id}`}>{tenant.nationalId}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span data-testid={`text-tenant-birthdate-${tenant.id}`}>{formatDate(tenant.birthDate)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {tenants.map((tenant: Tenant) => {
+              const contractInfo = getTenantContractInfo(tenant.id);
+              return (
+                <Card key={tenant.id} className="hover-elevate" data-testid={`card-tenant-${tenant.id}`}>
+                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                    <div>
+                      <CardTitle className="text-lg font-semibold" data-testid={`text-tenant-name-${tenant.id}`}>
+                        {tenant.firstName} {tenant.lastName}
+                      </CardTitle>
+                      {contractInfo ? (
+                        <Badge variant="default" className="mt-1">Active Contract</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="mt-1">No Contract</Badge>
+                      )}
+                    </div>
+                    {!isPropertyOwner && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteConfirmId(tenant.id)}
+                        data-testid={`button-delete-tenant-${tenant.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* Contact Information */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="h-4 w-4" />
+                        <span data-testid={`text-tenant-email-${tenant.id}`}>{tenant.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Phone className="h-4 w-4" />
+                        <span data-testid={`text-tenant-phone-${tenant.id}`}>{tenant.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CreditCard className="h-4 w-4" />
+                        <span data-testid={`text-tenant-nationalid-${tenant.id}`}>{tenant.nationalId}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span data-testid={`text-tenant-birthdate-${tenant.id}`}>{formatDate(tenant.birthDate)}</span>
+                      </div>
+                    </div>
+
+                    {/* Contract & Property Information */}
+                    {contractInfo && (
+                      <div className="pt-3 border-t border-border space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Home className="h-4 w-4 text-primary" />
+                          <span className="font-medium" data-testid={`text-tenant-property-${tenant.id}`}>
+                            {contractInfo.property?.name || 'Unknown Property'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <FileText className="h-4 w-4" />
+                          <span data-testid={`text-tenant-contract-dates-${tenant.id}`}>
+                            {formatDate(contractInfo.contract.startDate)} - {formatDate(contractInfo.contract.endDate)}
+                          </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {contractInfo.contract.price?.toLocaleString()} SAR
+                          </span>
+                          <span className="text-xs ml-1">
+                            / {contractInfo.contract.paymentFrequency?.toLowerCase().replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
 
